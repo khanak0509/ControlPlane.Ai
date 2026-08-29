@@ -160,6 +160,5 @@ controlplane-ai/
 ├── tests/
 │   └── test_risk_engine.py
 └── docs/
-    ├── business_proposal.md
-    └── demo_script.md
+    └── business_proposal.md
 ```
