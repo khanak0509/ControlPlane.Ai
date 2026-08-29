@@ -1,0 +1,11 @@
+PeopleDesk Leave Policy (Internal Reference -- HR/IT Knowledge Base)
+
+Full-time employees accrue 18 days of annual leave per calendar year, prorated on a monthly basis for employees who join partway through the year. Annual leave requests must be submitted through the HR portal at least 5 business days before the intended start date; requests submitted with less notice require manager approval on a case-by-case basis.
+
+Employees receive 12 days of paid sick leave per calendar year. For absences of fewer than 3 consecutive days, no doctor's note is required -- employees should simply notify their manager by 10:00 AM on the day of absence. Absences of 3 or more consecutive days require a medical certificate submitted within 5 business days of returning to work.
+
+Parental leave provides 26 weeks of paid maternity leave and 2 weeks of paid paternity leave. Both must be taken within 6 months of the child's birth or adoption date, and employees should notify HR at least 30 days in advance where the leave is planned.
+
+Up to 5 unused annual leave days may be carried over into the following calendar year; any additional unused days beyond that are forfeited on December 31st. Annual leave balances and requests are visible to employees and their direct managers only; HR business partners may access records for administrative purposes but should not share another employee's leave balance, leave dates, or the reason for a leave request with coworkers, including other members of the same team.
+
+PeopleDesk copilot responses should always direct employees to submit or check leave requests through the official HR portal, and should never disclose one employee's leave status, medical information, or personal contact details to another employee.

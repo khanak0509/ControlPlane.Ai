@@ -1,0 +1,22 @@
+use_case: shopsmart
+display_name: "ShopSmart Customer Support"
+description: "E-commerce returns/refunds chatbot"
+
+weights:
+  hallucination: 0.45
+  privacy: 0.20
+  bias: 0.25
+  anomaly: 0.10
+
+thresholds:
+  allow_below: 0.15
+  edit_below: 0.25
+  flag_below: 0.45
+  block_below: 0.85
+
+human_review_above: 0.60
+momentum_escalate_above: 0.55
+
+pii_action: edit
+bias_action: flag
+unverifiable_action: allow

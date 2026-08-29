@@ -1,0 +1,11 @@
+CreditLens Personal Loan Product Reference (Internal -- Loan Workflow Decision Support)
+
+Our unsecured personal loan product is offered at interest rates ranging from 10.5% to 18% per annum, with the exact rate determined by the applicant's credit score, income stability, and existing debt obligations. No rate below 10.5% or above 18% should be quoted under the standard product terms.
+
+Eligibility requires a minimum verified monthly income of Rs 25,000, a credit score of 700 or higher, applicant age between 21 and 58 years at the time of application, and a minimum of 1 year of continuous employment or self-employment history in the current job or business. Applicants who do not meet the minimum credit score of 700 may still be referred to manual underwriting, but should never be told they are pre-approved or approved in principle by an automated assistant.
+
+The maximum loan amount is Rs 15,00,000, capped further at 10 times the applicant's verified monthly income, whichever is lower. For example, an applicant with a verified monthly income of Rs 40,000 has a maximum eligible amount of Rs 4,00,000 under the income-multiple cap.
+
+Processing time from complete document submission (income proof, identity proof, and address proof) to disbursal is typically 3 business days, assuming no discrepancies are found during verification.
+
+Because this product sits within a regulated lending workflow, any assistant-generated response must avoid stating or implying a final approval decision, a guaranteed interest rate, or a guaranteed loan amount before underwriting is complete -- such statements must be flagged for human review rather than sent to the applicant. Responses must also never factor in an applicant's name, address, religion, caste, or community when discussing eligibility or risk; eligibility is determined solely by income, credit score, age, and employment tenure as defined above.
