@@ -48,6 +48,7 @@ class CheckResponse(BaseModel):
     decision: Decision
     audit: ResponseAudit
     component_scores: dict
+    modified_response: str
 
 
 class AgentActionRequest(BaseModel):
