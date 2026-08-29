@@ -19,56 +19,37 @@ A one-size-fits-all filter either causes massive **alert fatigue** (over-flaggin
 
 ---
 
-## Architectural Blueprint
+## How it works
 
 ```
-                     AI Response or Proposed Agent Action
-                                      │
-                                      ▼
-    ┌───────────────────────────────────────────────────────────────────┐
-    │                      DETECTION & SCAN STACK                       │
-    │                                                                   │
-    │  [PII Prescan & Secret Scan] ──► Multi-Regex + Entity Preservation │
-    │            │                     (Raw PII never sent to judge)    │
-    │            ▼                                                      │
-    │  [Unified LLM Judge]        ──► Atomic Claim-Level Decomposition   │
-    │            │                     (Grounding / PII / Bias / Overlap)│
-    │            ▼                                                      │
-    │  [Embedding Anomaly Check]  ──► Cosine distance to baseline        │
-    └─────────────────────────────────┬─────────────────────────────────┘
-                                      │
-                                      ▼
-    ┌───────────────────────────────────────────────────────────────────┐
-    │                   DETERMINISTIC FUSION & STATE                    │
-    │                                                                   │
-    │  [Risk Engine]              ──► Weighted deterministic score fusion│
-    │            │                                                      │
-    │            ▼                                                      │
-    │  [Session Tracker]          ──► EMA Multi-Turn Momentum Tracking  │
-    │            │                     (Catches progressive exfiltration)│
-    │            ▼                                                      │
-    │  [Policy Engine]            ──► YAML Profiles + Regulatory Overlay │
-    │                                  (EU AI Act / HIPAA / DPDP / RBI)  │
-    └─────────────────────────────────┬─────────────────────────────────┘
-                                      │
-                                      ▼
-                        5-Tier Guardrail Decision
-          ┌─────────────┬─────────────┬─────────────┬─────────────┐
-          │    ALLOW    │    EDIT     │    FLAG     │    BLOCK    │  ESCALATE
-          │ (Pass-thru) │  (Redact/   │ (Log with   │ (Contextual │ (Human-in-
-          │             │   Caveat)   │  telemetry) │  fallback)  │  the-loop)
-          └─────────────┴─────────────┴─────────────┴─────────────┘
-                                      │
-                                      ▼
-    ┌───────────────────────────────────────────────────────────────────┐
-    │                AUDIT TRAIL, METRICS & ACTIVE FEEDBACK             │
-    │                                                                   │
-    │  • Tamper-evident SQLite Audit Log (Scores, Reasons, Payloads)     │
-    │  • Human-in-the-loop review queue & verdict ingestion             │
-    │  • Feedback-based metrics (precision, recall, F1 when reviewed)   │
-    │  • Threshold tuning hints from reviewer override patterns         │
-    └───────────────────────────────────────────────────────────────────┘
+AI Response (from chatbot / copilot)
+    |
+    v
+[PII Prescan] ............ regex + secrets — raw PII never sent to judge
+    |
+    v
+[LLM Judge] .............. claim-level audit (grounding / PII / bias per claim)
+    |                              |
+    v                              v
+[Anomaly Check]          [Risk Engine] ... weighted score fusion (deterministic)
+    |                              |
+    +--------------+---------------+
+                   v
+            [Session Tracker] ..... EMA momentum + privacy-turn escalation
+                   |
+                   v
+            [Policy Engine] ....... YAML thresholds + jurisdiction overlay (EU / HIPAA / DPDP)
+                   |
+                   v
+         allow / edit / flag / block / escalate
+                   |
+                   v
+            [Audit Log] ........... sqlite trail, CSV/JSON export, feedback metrics
 ```
+
+**Core design rule:** the LLM **assesses** risk (`ResponseAudit` — claim-level flags). It never outputs the final action. `risk_engine.py` fuses scores; `policy_engine.py` maps them to a decision using per-use-case YAML and regulatory overlays. Compliance logic stays separate from model behavior.
+
+**Agent actions** (separate path): `/agent-action` runs through `agent_gate.py` — checks blast radius, reversibility, PII in tool parameters, and financial limits before execution.
 
 ---
 
@@ -188,7 +169,7 @@ Run the automated test suite:
 pytest tests/ -v
 ```
 
-All 28 test cases covering score fusion, policy overrides, PII redaction, session momentum, agent gating, audit exports, and API endpoints pass 100%.
+All 29 test cases covering score fusion, policy overrides, PII redaction, session momentum, agent gating, audit exports, and API endpoints pass 100%.
 
 Run the parallel 63-scenario evaluation benchmark:
 
