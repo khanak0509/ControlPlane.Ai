@@ -1,8 +1,10 @@
 import json
 import time
 import sys
+import argparse
 from pathlib import Path
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -30,7 +32,7 @@ def run_pipeline(row):
                 )
                 policy = policy_engine.load_policy(row["use_case"])
                 prev_score, _, _ = risk_engine.compute_score(
-                    prev_audit, prev_hits, 0.1, policy["weights"]
+                    prev_audit, prev_hits, 0.05, policy["weights"]
                 )
                 conversation_tracker.update(row["session_id"], prev_score)
             except Exception:
@@ -67,7 +69,33 @@ def run_pipeline(row):
     return decision.action, latency
 
 
+def evaluate_single(i, total, row):
+    rid = row["id"]
+    expected = row["expected_action"]
+    try:
+        predicted, latency = run_pipeline(row)
+        is_correct = predicted == expected
+        status = "->" if is_correct else f"wanted {expected}, got"
+        print(f"  {i+1}/{total} {rid} {status} {predicted} ({latency:.0f}ms)", flush=True)
+        return {
+            "id": rid,
+            "category": row["category"],
+            "use_case": row["use_case"],
+            "expected": expected,
+            "predicted": predicted,
+            "correct": is_correct,
+            "latency_ms": latency,
+        }
+    except Exception as e:
+        print(f"  {i+1}/{total} {rid} error: {e}", flush=True)
+        return {"id": rid, "error": str(e), "correct": False, "latency_ms": 0}
+
+
 def main():
+    parser = argparse.ArgumentParser(description="Run ControlPlane Evaluation Benchmark")
+    parser.add_argument("--workers", type=int, default=6, help="Parallel worker threads (default: 6)")
+    args = parser.parse_args()
+
     rows = []
     with open(EVAL_PATH) as f:
         for line in f:
@@ -75,49 +103,40 @@ def main():
             if line:
                 rows.append(json.loads(line))
 
-    print(f"running {len(rows)} eval cases\n")
+    print(f"Running {len(rows)} evaluation benchmark cases with {args.workers} workers...\n", flush=True)
 
     results = []
-    latencies = []
-    errors = []
+    t_start = time.time()
 
-    for i, row in enumerate(rows):
-        rid = row["id"]
-        expected = row["expected_action"]
-        try:
-            predicted, latency = run_pipeline(row)
-            results.append({
-                "id": rid,
-                "category": row["category"],
-                "use_case": row["use_case"],
-                "expected": expected,
-                "predicted": predicted,
-                "correct": predicted == expected,
-                "latency_ms": latency,
-            })
-            latencies.append(latency)
-            if predicted == expected:
-                print(f"  {i+1}/{len(rows)} {rid} -> {predicted} ({latency:.0f}ms)")
-            else:
-                print(f"  {i+1}/{len(rows)} {rid} wanted {expected}, got {predicted} ({latency:.0f}ms)")
-        except Exception as e:
-            errors.append({"id": rid, "error": str(e)})
-            print(f"  {i+1}/{len(rows)} {rid} blew up: {e}")
+    if args.workers > 1:
+        with ThreadPoolExecutor(max_workers=args.workers) as executor:
+            future_to_idx = {
+                executor.submit(evaluate_single, i, len(rows), row): i
+                for i, row in enumerate(rows)
+            }
+            for future in as_completed(future_to_idx):
+                res = future.result()
+                if "error" not in res:
+                    results.append(res)
+    else:
+        for i, row in enumerate(rows):
+            res = evaluate_single(i, len(rows), row)
+            if "error" not in res:
+                results.append(res)
 
-    print()
-    print(f"done — {len(results)} ran, {len(errors)} failed")
-    print()
+    total_time = time.time() - t_start
+    print(f"\nDone — {len(results)} evaluated in {total_time:.1f}s\n", flush=True)
 
     if not results:
-        print("nothing to score")
+        print("No results to score.", flush=True)
         return
 
     correct = sum(1 for r in results if r["correct"])
-    print(f"accuracy: {correct}/{len(results)} ({100*correct/len(results):.1f}%)\n")
+    print(f"Overall Accuracy: {correct}/{len(results)} ({100*correct/len(results):.1f}%)\n", flush=True)
 
     actions = sorted(set(r["expected"] for r in results) | set(r["predicted"] for r in results))
-    print(f"{'action':<12} {'precision':>10} {'recall':>10} {'f1':>10} {'support':>10}")
-    print("-" * 54)
+    print(f"{'Action':<12} {'Precision':>10} {'Recall':>10} {'F1':>10} {'Support':>10}", flush=True)
+    print("-" * 54, flush=True)
 
     for action in actions:
         tp = sum(1 for r in results if r["predicted"] == action and r["expected"] == action)
@@ -129,11 +148,11 @@ def main():
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0
         f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
 
-        print(f"{action:<12} {precision:>10.2f} {recall:>10.2f} {f1:>10.2f} {support:>10}")
+        print(f"{action:<12} {precision:>10.2f} {recall:>10.2f} {f1:>10.2f} {support:>10}", flush=True)
 
-    print()
-    print(f"{'category':<30} {'correct':>8} {'total':>8} {'accuracy':>10}")
-    print("-" * 58)
+    print(flush=True)
+    print(f"{'Category':<30} {'Correct':>8} {'Total':>8} {'Accuracy':>10}", flush=True)
+    print("-" * 58, flush=True)
     cats = defaultdict(lambda: {"correct": 0, "total": 0})
     for r in results:
         cats[r["category"]]["total"] += 1
@@ -143,13 +162,15 @@ def main():
     for cat in sorted(cats):
         c = cats[cat]
         acc = 100 * c["correct"] / c["total"] if c["total"] > 0 else 0
-        print(f"{cat:<30} {c['correct']:>8} {c['total']:>8} {acc:>9.1f}%")
+        print(f"{cat:<30} {c['correct']:>8} {c['total']:>8} {acc:>9.1f}%", flush=True)
 
-    latencies.sort()
-    median = latencies[len(latencies)//2]
-    print()
-    print(f"latency — median {median:.0f}ms, p95 {latencies[int(len(latencies)*0.95)]:.0f}ms, "
-          f"avg {sum(latencies)/len(latencies):.0f}ms")
+    latencies = [r["latency_ms"] for r in results if r.get("latency_ms")]
+    if latencies:
+        latencies.sort()
+        median = latencies[len(latencies)//2]
+        p95 = latencies[int(len(latencies)*0.95)]
+        avg = sum(latencies)/len(latencies)
+        print(f"\nLatency: median {median:.0f}ms | p95 {p95:.0f}ms | avg {avg:.0f}ms", flush=True)
 
 
 if __name__ == "__main__":
