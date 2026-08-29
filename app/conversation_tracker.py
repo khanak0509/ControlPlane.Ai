@@ -1,0 +1,41 @@
+_sessions = {}
+
+ALPHA = 0.3
+
+
+def update(session_id, current_score):
+    if session_id not in _sessions:
+        _sessions[session_id] = {"momentum": current_score, "turn_count": 1}
+        return current_score
+
+    sess = _sessions[session_id]
+    prev = sess["momentum"]
+    new_momentum = 0.7 * prev + 0.3 * current_score
+    sess["momentum"] = new_momentum
+    sess["turn_count"] += 1
+    return new_momentum
+
+
+def get_momentum(session_id):
+    if session_id in _sessions:
+        return _sessions[session_id]["momentum"]
+    return 0.0
+
+
+def get_turn_count(session_id):
+    if session_id in _sessions:
+        return _sessions[session_id]["turn_count"]
+    return 0
+
+
+def should_escalate(session_id, threshold):
+    if get_turn_count(session_id) < 2:
+        return False
+    return get_momentum(session_id) >= threshold
+
+
+def reset(session_id=None):
+    if session_id:
+        _sessions.pop(session_id, None)
+    else:
+        _sessions.clear()
