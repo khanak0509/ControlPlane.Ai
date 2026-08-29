@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor
+
 from fastapi import FastAPI, HTTPException
 from app.schemas import (
     CheckRequest, CheckResponse, AgentActionRequest,
@@ -14,6 +16,27 @@ app = FastAPI(
 )
 
 
+def _warm_session_from_history(session_id, use_case, history, source_context):
+    if not history:
+        return
+    policy = policy_engine.load_policy(use_case)
+    for turn in history:
+        prev_hits, prev_redacted = pii_prescan.scan(turn.get("response", ""))
+        try:
+            prev_audit = unified_judge.judge(
+                use_case=use_case,
+                query=turn.get("query", ""),
+                response=prev_redacted,
+                source_context=source_context,
+            )
+            prev_score, _, _ = risk_engine.compute_score(
+                prev_audit, prev_hits, 0.1, policy["weights"]
+            )
+            conversation_tracker.update(session_id, prev_score)
+        except Exception:
+            conversation_tracker.update(session_id, 0.1)
+
+
 @app.post("/check", response_model=CheckResponse)
 def check_response(req: CheckRequest):
     pii_hits, redacted_response = pii_prescan.scan(req.response)
@@ -23,15 +46,26 @@ def check_response(req: CheckRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    audit = unified_judge.judge(
-        use_case=req.use_case,
-        query=req.query,
-        response=redacted_response,
-        source_context=req.source_context,
-        conversation_history=req.conversation_history,
-    )
+    if req.conversation_history:
+        conversation_tracker.reset(req.session_id)
+        _warm_session_from_history(
+            req.session_id, req.use_case, req.conversation_history, req.source_context
+        )
 
-    anomaly = anomaly_check.anomaly_score(redacted_response, req.use_case)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        audit_future = pool.submit(
+            unified_judge.judge,
+            use_case=req.use_case,
+            query=req.query,
+            response=redacted_response,
+            source_context=req.source_context,
+            conversation_history=req.conversation_history,
+        )
+        anomaly_future = pool.submit(
+            anomaly_check.anomaly_score, redacted_response, req.use_case
+        )
+        audit = audit_future.result()
+        anomaly = anomaly_future.result()
 
     score, components, reasons = risk_engine.compute_score(
         audit, pii_hits, anomaly, policy["weights"]
@@ -65,6 +99,7 @@ def check_response(req: CheckRequest):
         decision=decision,
         audit=audit,
         component_scores=components,
+        modified_response=modified_response,
     )
 
 
@@ -111,6 +146,11 @@ def get_audit_log(limit: int = 50):
 @app.get("/audit-log/stats")
 def get_audit_stats():
     return audit_log.get_action_counts()
+
+
+@app.get("/audit-log/feedback-stats")
+def get_feedback_stats():
+    return audit_log.get_feedback_counts()
 
 
 @app.get("/health")
