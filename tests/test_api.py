@@ -228,3 +228,10 @@ class TestSessionTracker:
         assert conversation_tracker.should_escalate("sess-b", 0.5) is False
         conversation_tracker.update("sess-b", 0.9)
         assert conversation_tracker.should_escalate("sess-b", 0.5) is True
+
+    def test_escalate_on_repeated_privacy_turns(self):
+        conversation_tracker.reset("sess-c")
+        conversation_tracker.update("sess-c", 0.2, privacy_hit=True)
+        assert conversation_tracker.should_escalate("sess-c", 0.9) is False
+        conversation_tracker.update("sess-c", 0.3, privacy_hit=True)
+        assert conversation_tracker.should_escalate("sess-c", 0.9) is True

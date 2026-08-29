@@ -5,13 +5,13 @@ def apply(action, response_text, pii_hits=None, audit=None):
     if action == "allow":
         return response_text
 
-    if action == "edit":
+    if action in ("edit", "flag"):
         edited = response_text
         if pii_hits:
             for hit in sorted(pii_hits, key=lambda h: len(h["value"]), reverse=True):
                 edited = edited.replace(hit["value"], f"[REDACTED:{hit['type']}]")
 
-        if audit and audit.primary_risk_type in ("unverifiable", "hallucination"):
+        if action == "edit" and audit and audit.primary_risk_type in ("unverifiable", "hallucination"):
             caveat = (
                 "[Note: Some claims in this response could not be verified "
                 "against available source material. Please verify independently.]\n\n"

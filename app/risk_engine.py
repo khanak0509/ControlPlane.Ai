@@ -42,7 +42,15 @@ def compute_score(audit, pii_hits, anomaly, weights):
         else:
             reasons.append("bias detected in claims")
 
-    if anomaly > 0.4:
+    benign_conversation = (
+        audit.primary_risk_type in ("none", "unverifiable")
+        and max_sev <= 0.3
+        and privacy_signal == 0.0
+        and bias_signal == 0.0
+    )
+    if benign_conversation:
+        anomaly = 0.0
+    elif anomaly > 0.4:
         reasons.append(f"anomaly score {anomaly:.2f}")
 
     w = weights
@@ -52,6 +60,8 @@ def compute_score(audit, pii_hits, anomaly, weights):
         + w["bias"] * bias_signal
         + w["anomaly"] * anomaly
     )
+    if non_self_hits:
+        score = max(score, 0.45)
     score = round(min(score, 1.0), 4)
 
     if not reasons:

@@ -10,3 +10,5 @@ venv/
 dist/
 build/
 docs/demo_script.md
+NAYAN_MASTER.md
+docs/NAYAN_*.md

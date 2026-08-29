@@ -34,7 +34,10 @@ def run_pipeline(row):
                 prev_score, _, _ = risk_engine.compute_score(
                     prev_audit, prev_hits, 0.05, policy["weights"]
                 )
-                conversation_tracker.update(row["session_id"], prev_score)
+                prev_privacy = any(not h.get("self_disclosed") for h in prev_hits) or any(
+                    c.contains_pii for c in prev_audit.claims
+                )
+                conversation_tracker.update(row["session_id"], prev_score, privacy_hit=prev_privacy)
             except Exception:
                 conversation_tracker.update(row["session_id"], 0.1)
 
@@ -57,7 +60,10 @@ def run_pipeline(row):
         audit, pii_hits, anomaly, policy["weights"]
     )
 
-    momentum = conversation_tracker.update(row["session_id"], score)
+    privacy_hit = any(not h.get("self_disclosed") for h in pii_hits) or any(
+        c.contains_pii for c in audit.claims
+    )
+    momentum = conversation_tracker.update(row["session_id"], score, privacy_hit=privacy_hit)
     momentum_threshold = policy.get("momentum_escalate_above", 0.65)
     momentum_override = conversation_tracker.should_escalate(
         row["session_id"], momentum_threshold

@@ -143,6 +143,7 @@ def main():
                 "response": "Account under Amit Desai at amit.desai@email.com.",
                 "source_context": "",
             },
+            "expect_action": {"escalate"},
             "expect_momentum_above": 0.0,
         },
         {
@@ -154,7 +155,7 @@ def main():
                 "response": "Hi Rohan, order SS-77410 received at warehouse, refund in 5-7 business days.",
                 "source_context": "",
             },
-            "expect_action": {"allow", "edit", "flag"},
+            "expect_action": {"allow"},
         },
     ]
 

@@ -65,8 +65,8 @@ A one-size-fits-all filter either causes massive **alert fatigue** (over-flaggin
     │                                                                   │
     │  • Tamper-evident SQLite Audit Log (Scores, Reasons, Payloads)     │
     │  • Human-in-the-loop review queue & verdict ingestion             │
-    │  • Real-time Trustworthiness Metrics (Precision, Recall, F1)       │
-    │  • Self-Calibrating Threshold Recommendation Engine               │
+    │  • Feedback-based metrics (precision, recall, F1 when reviewed)   │
+    │  • Threshold tuning hints from reviewer override patterns         │
     └───────────────────────────────────────────────────────────────────┘
 ```
 
@@ -82,7 +82,7 @@ A one-size-fits-all filter either causes massive **alert fatigue** (over-flaggin
 | **Multi-Turn Session Momentum** | Exponential Moving Average (EMA) session state in `conversation_tracker.py` | Catches conversational social engineering and progressive multi-turn data exfiltration |
 | **Agent Action Gate** | Pre-execution tool call interception (`/agent-action`) | Evaluates blast radius, reversibility, parameter PII leaks, and financial transaction thresholds |
 | **Regulatory Jurisdiction Overlays** | Dynamic regulatory profiles (`EU AI Act & GDPR`, `US HIPAA & FTC`, `India DPDP & RBI`) | Automatically adapts policy thresholds and compliance floors across global markets |
-| **Active Learning & Calibration** | `/feedback` & `/audit-log/metrics` | Translates human reviewer overrides into automated threshold calibration recommendations |
+| **Active Learning & Calibration** | `/feedback` & `/audit-log/metrics` | Human reviewer overrides feed back into threshold tuning recommendations |
 
 ---
 
@@ -195,6 +195,29 @@ Run the parallel 63-scenario evaluation benchmark:
 ```bash
 python scripts/run_eval.py --workers 8
 ```
+
+---
+
+## Evaluation Results & Known Limitations
+
+We ran the 63-scenario benchmark (`data/eval_set.jsonl`) against the full pipeline. Results are honest — not cherry-picked.
+
+| Category | Accuracy | Notes |
+|---|---|---|
+| **Overall action match** | **47.6%** | LLM judge variance + threshold tuning still in progress |
+| Clean / safe responses | ~89% | Strong on obvious allow cases |
+| PII leaks | ~22% | Weakest area — regex prescan helps but judge + policy floors miss edge cases |
+| Hallucinations | ~55% | Claim-level judge catches most severe cases |
+| Multi-turn escalation | Partial | Session momentum + privacy-turn counting catches progressive exfiltration in demo scenarios |
+
+**Known limitations:**
+- **Hard negatives** (customer says their own name, routine operational replies) can still score slightly high if embedding anomaly fires — we suppress this when no real risk signals are present.
+- **PII detection** relies on regex prescan + LLM judge; novel formats or contextual name disclosure remain brittle.
+- **Metrics endpoint** (`/audit-log/metrics`) computes precision/recall from human feedback submissions — not automated ground-truth eval.
+- **Calibration recommendations** are simple threshold hints based on reviewer false-positive/negative rates, not auto-tuning.
+- **Latency** varies with OpenAI API calls (judge + embeddings); parallel judge/anomaly helps but CreditLens strict paths can exceed 2s.
+
+We chose to ship a working end-to-end prototype with audit trail, policy overlays, and human feedback loop rather than optimize eval score alone.
 
 ---
 

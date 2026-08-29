@@ -27,6 +27,9 @@ TYPICAL_RESPONSES = {
         "That order is currently out for delivery and should arrive today.",
         "You can use any sturdy box or bag for your return shipment.",
         "Please confirm the email address associated with your order for verification.",
+        "Hi Rohan, your order SS-77410 has been received at our warehouse.",
+        "Your return was received and the refund will process in 5 to 7 business days.",
+        "Order SS-77410 is at the warehouse and your refund is being processed.",
     ],
     "peopledesk": [
         "Full-time employees receive 18 days of annual leave per year.",

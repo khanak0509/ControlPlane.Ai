@@ -3,9 +3,13 @@ _sessions = {}
 ALPHA = 0.3
 
 
-def update(session_id, current_score):
+def update(session_id, current_score, privacy_hit=False):
     if session_id not in _sessions:
-        _sessions[session_id] = {"momentum": current_score, "turn_count": 1}
+        _sessions[session_id] = {
+            "momentum": current_score,
+            "turn_count": 1,
+            "privacy_turns": 1 if privacy_hit else 0,
+        }
         return current_score
 
     sess = _sessions[session_id]
@@ -13,6 +17,8 @@ def update(session_id, current_score):
     new_momentum = 0.7 * prev + 0.3 * current_score
     sess["momentum"] = new_momentum
     sess["turn_count"] += 1
+    if privacy_hit:
+        sess["privacy_turns"] = sess.get("privacy_turns", 0) + 1
     return new_momentum
 
 
@@ -31,6 +37,9 @@ def get_turn_count(session_id):
 def should_escalate(session_id, threshold):
     if get_turn_count(session_id) < 2:
         return False
+    sess = _sessions.get(session_id, {})
+    if sess.get("privacy_turns", 0) >= 2:
+        return True
     return get_momentum(session_id) >= threshold
 
 
