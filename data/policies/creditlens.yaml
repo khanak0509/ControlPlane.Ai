@@ -9,10 +9,10 @@ weights:
   anomaly: 0.10
 
 thresholds:
-  allow_below: 0.14
-  edit_below: 0.22
-  flag_below: 0.32
-  block_below: 0.52
+  allow_below: 0.18
+  edit_below: 0.30
+  flag_below: 0.48
+  block_below: 0.70
 
 human_review_above: 0.40
 momentum_escalate_above: 0.35

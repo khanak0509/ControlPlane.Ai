@@ -7,9 +7,9 @@ class ClaimAssessment(BaseModel):
     is_grounded: bool
     grounding_confidence: float
     contains_pii: bool
-    pii_entities: list[str]
+    pii_entities: list[str] = []
     bias_flag: bool
-    bias_reasoning: str | None
+    bias_reasoning: str | None = None
     hallucination_risk: Literal["none", "low", "medium", "high"]
 
 
@@ -26,11 +26,13 @@ class Decision(BaseModel):
     final_score: float
     reasons: list[str]
     requires_human: bool
+    jurisdiction: str = "default"
+    regulatory_framework: str = "Standard Enterprise Policy"
 
 
 class AgentAction(BaseModel):
     tool_name: str
-    parameters: dict
+    parameters: dict = {}
     reversible: bool
     estimated_impact: Literal["low", "medium", "high"]
 
@@ -42,6 +44,7 @@ class CheckRequest(BaseModel):
     response: str
     source_context: str = ""
     conversation_history: list[dict] = []
+    jurisdiction: str = "default"
 
 
 class CheckResponse(BaseModel):
@@ -55,12 +58,14 @@ class AgentActionRequest(BaseModel):
     action: AgentAction
     use_case: str
     session_id: str
+    jurisdiction: str = "default"
 
 
 class AgentGateResponse(BaseModel):
     allowed: bool
     action: Literal["allow", "flag", "escalate"]
     reason: str
+    risk_factors: list[str] = []
 
 
 class FeedbackRequest(BaseModel):

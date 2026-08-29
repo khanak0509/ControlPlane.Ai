@@ -6,13 +6,15 @@ def compute_score(audit, pii_hits, anomaly, weights):
 
     max_sev = 0.0
     for claim in audit.claims:
-        if claim.contains_pii and audit.primary_risk_type in ("privacy", "overlap"):
+        # If the overall risk is pure privacy, do not count the ungrounded PII as a separate hallucination
+        is_pii_claim = claim.contains_pii or ("[REDACTED:" in claim.claim_text) or any(h["value"] in claim.claim_text for h in pii_hits)
+        if is_pii_claim and audit.primary_risk_type == "privacy":
             continue
         s = SEVERITY_MAP.get(claim.hallucination_risk, 0.0)
         if s > max_sev:
             max_sev = s
 
-    if max_sev == 0.0 and audit.primary_risk_type == "overlap":
+    if max_sev == 0.0 and audit.primary_risk_type in ("overlap", "hallucination"):
         for claim in audit.claims:
             s = SEVERITY_MAP.get(claim.hallucination_risk, 0.0)
             if s > max_sev:
@@ -22,14 +24,14 @@ def compute_score(audit, pii_hits, anomaly, weights):
         reasons.append(f"hallucination severity {max_sev:.1f}")
 
     privacy_signal = 0.0
-    if pii_hits:
+    non_self_hits = [h for h in pii_hits if not h.get("self_disclosed")]
+    if non_self_hits:
         privacy_signal = 1.0
-        types = list(set(h["type"] for h in pii_hits))
+        types = list(set(h["type"] for h in non_self_hits))
         reasons.append(f"PII prescan: {', '.join(types)}")
-    if any(c.contains_pii for c in audit.claims):
+    elif any(c.contains_pii for c in audit.claims):
         privacy_signal = 1.0
-        if not pii_hits:
-            reasons.append("LLM judge flagged PII in claims")
+        reasons.append("LLM judge flagged PII in claims")
 
     bias_signal = 0.0
     if any(c.bias_flag for c in audit.claims):
@@ -40,7 +42,7 @@ def compute_score(audit, pii_hits, anomaly, weights):
         else:
             reasons.append("bias detected in claims")
 
-    if anomaly > 0.5:
+    if anomaly > 0.4:
         reasons.append(f"anomaly score {anomaly:.2f}")
 
     w = weights
