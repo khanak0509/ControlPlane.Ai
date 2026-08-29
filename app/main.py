@@ -1,6 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from app.schemas import (
     CheckRequest, CheckResponse, AgentActionRequest,
     AgentGateResponse, FeedbackRequest,
@@ -8,20 +8,21 @@ from app.schemas import (
 from app.detectors import pii_prescan, unified_judge, anomaly_check
 from app import risk_engine, policy_engine, conversation_tracker
 from app import decision_actions, audit_log, feedback
+from app.agent_gate import gate
 
 app = FastAPI(
     title="ControlPlane.ai",
-    description="AI response safety checks",
-    version="0.1.0",
+    description="Real-time Oversight & Governance Layer for Enterprise AI",
+    version="0.2.0",
 )
 
 
-def _warm_session_from_history(session_id, use_case, history, source_context):
+def _warm_session_from_history(session_id, use_case, history, source_context, jurisdiction="default"):
     if not history:
         return
-    policy = policy_engine.load_policy(use_case)
+    policy = policy_engine.load_policy(use_case, jurisdiction)
     for turn in history:
-        prev_hits, prev_redacted = pii_prescan.scan(turn.get("response", ""))
+        prev_hits, prev_redacted = pii_prescan.scan(turn.get("response", ""), user_query=turn.get("query", ""))
         try:
             prev_audit = unified_judge.judge(
                 use_case=use_case,
@@ -39,17 +40,17 @@ def _warm_session_from_history(session_id, use_case, history, source_context):
 
 @app.post("/check", response_model=CheckResponse)
 def check_response(req: CheckRequest):
-    pii_hits, redacted_response = pii_prescan.scan(req.response)
+    pii_hits, redacted_response = pii_prescan.scan(req.response, user_query=req.query)
 
     try:
-        policy = policy_engine.load_policy(req.use_case)
+        policy = policy_engine.load_policy(req.use_case, req.jurisdiction)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     if req.conversation_history:
         conversation_tracker.reset(req.session_id)
         _warm_session_from_history(
-            req.session_id, req.use_case, req.conversation_history, req.source_context
+            req.session_id, req.use_case, req.conversation_history, req.source_context, req.jurisdiction
         )
 
     with ThreadPoolExecutor(max_workers=2) as pool:
@@ -105,16 +106,14 @@ def check_response(req: CheckRequest):
 
 @app.post("/agent-action", response_model=AgentGateResponse)
 def check_agent_action(req: AgentActionRequest):
-    from app.agent_gate import gate
-
-    allowed, gate_action, reason = gate(req.action)
+    allowed, gate_action, reason = gate(req.action, req.use_case, req.jurisdiction)
 
     components = {
         "hallucination_severity": 0,
         "privacy_signal": 0,
         "bias_signal": 0,
         "anomaly_score": 0,
-        "final_score": 0 if allowed else 0.8,
+        "final_score": 0.0 if allowed else (0.4 if gate_action == "flag" else 0.85),
     }
     audit_log.log_decision(
         session_id=req.session_id,
@@ -139,8 +138,16 @@ def submit_feedback(req: FeedbackRequest):
 
 
 @app.get("/audit-log")
-def get_audit_log(limit: int = 50):
-    return audit_log.get_recent(limit)
+def get_audit_log(limit: int = 50, use_case: str = None, action: str = None, search: str = None):
+    return audit_log.get_recent(limit=limit, use_case=use_case, action=action, search=search)
+
+
+@app.get("/audit-log/export")
+def export_audit_log(format: str = "json"):
+    data = audit_log.export_audit_log(format=format)
+    if format.lower() == "csv":
+        return Response(content=data, media_type="text/csv", headers={"Content-Disposition": "attachment; filename=audit_log.csv"})
+    return Response(content=data, media_type="application/json", headers={"Content-Disposition": "attachment; filename=audit_log.json"})
 
 
 @app.get("/audit-log/stats")
@@ -153,6 +160,16 @@ def get_feedback_stats():
     return audit_log.get_feedback_counts()
 
 
+@app.get("/audit-log/metrics")
+def get_system_metrics():
+    return audit_log.get_system_metrics()
+
+
+@app.get("/jurisdictions")
+def get_jurisdictions():
+    return policy_engine.get_available_jurisdictions()
+
+
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "version": "0.2.0"}
