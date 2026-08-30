@@ -10,9 +10,9 @@ weights:
 
 thresholds:
   allow_below: 0.18
-  edit_below: 0.35
-  flag_below: 0.55
-  block_below: 0.80
+  edit_below: 0.55
+  flag_below: 0.70
+  block_below: 0.85
 
 human_review_above: 0.60
 momentum_escalate_above: 0.55

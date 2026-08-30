@@ -17,6 +17,6 @@ thresholds:
 human_review_above: 0.55
 momentum_escalate_above: 0.50
 
-pii_action: flag
+pii_action: block
 bias_action: flag
 unverifiable_action: flag
